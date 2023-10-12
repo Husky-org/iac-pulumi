@@ -1,0 +1,7 @@
+encryptionsalt: v1:Ew4fY2yvODs=:v1:b0szQAUGHnIRv7oo:bVzPUgYCG762lVFEwuUbGHNjKYaUcw==
+config:
+  aws:profile: devuser
+  aws:region: us-east-1
+  iac-pulumi:cidr-block: 10.0.0.0/16
+  iac-pulumi:name: test
+  iac-pulumi:num_of_subnets: "4"
