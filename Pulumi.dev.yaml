@@ -2,6 +2,16 @@ encryptionsalt: v1:Ew4fY2yvODs=:v1:b0szQAUGHnIRv7oo:bVzPUgYCG762lVFEwuUbGHNjKYaU
 config:
   aws:profile: devuser
   aws:region: us-east-1
-  iac-pulumi:cidr-block: 10.0.0.0/16
-  iac-pulumi:name: test
-  iac-pulumi:num_of_subnets: "4"
+  iac-pulumi:num_of_subnets: 3
+  iac-pulumi:vpc-cidr-block: 10.0.0.0/18
+  iac-pulumi:vpc-name: my-vpc
+  iac-pulumi:internet-gateway-name: my-ig
+  iac-pulumi:internet-gateway-cidr: 0.0.0.0/0
+  iac-pulumi:internet-gateway-attachment-name: my-ig-attach
+  iac-pulumi:public-rt-name: public-rt
+  iac-pulumi:private-rt-name: private-rt
+  iac-pulumi:publicSubPrefix: public-subnet-
+  iac-pulumi:privateSubPrefix: private-subnet-
+  iac-pulumi:public-route-name: public-route
+  iac-pulumi:public-SubAssociationPrefix: public-subnet-association-
+  iac-pulumi:private-SubAssociationPrefix: private-subnet-association-
