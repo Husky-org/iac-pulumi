@@ -2,6 +2,7 @@ encryptionsalt: v1:yfiyWd7Wneo=:v1:5caUhdKNh3/l84hZ:Fx3B5x9DIENwQT4F1kJokgBxow8+
 config:
   aws:profile: demouser
   aws:region: us-east-1
+  iac-pulumi:region: us-east-1
   iac-pulumi:internet-gateway-attachment-name: my-ig-attach
   iac-pulumi:internet-gateway-cidr: 0.0.0.0/0
   iac-pulumi:internet-gateway-name: my-ig
@@ -13,7 +14,17 @@ config:
   iac-pulumi:public-route-name: public-route
   iac-pulumi:public-rt-name: public-rt
   iac-pulumi:publicSubPrefix: public-subnet-
-  iac-pulumi:region: us-east-1
   iac-pulumi:vpc-cidr-block: 10.0.0.0/18
   iac-pulumi:vpc-name: my-vpc
   iac-pulumi:web-app-port: 3000
+  iac-pulumi:key-name: ssh-key
+  iac-pulumi:security-group-name: application security group
+  iac-pulumi:ec2-name: EC2-WebServer
+  iac-pulumi:instance-type: t2.micro
+  iac-pulumi:device-name: EC2-WebServer-Block
+  iac-pulumi:device-volume: 25
+  iac-pulumi:device-volume-type: gp2
+  iac-pulumi:ami-id: ami-007a643100c79e5fd
+  iac-pulumi:ssh-port: 22
+  iac-pulumi:http-port: 80
+  iac-pulumi:https-port: 443

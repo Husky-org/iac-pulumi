@@ -24,6 +24,21 @@ const privateSubAssociationPrefix = config.require(
 );
 const numOfSubnets = config.require("num_of_subnets");
 const webappPort = config.require("web-app-port");
+const keyName = config.require("key-name");
+const securityGroupName = config.require("security-group-name");
+const ec2Name = config.require("ec2-name");
+const instanceType = config.require("instance-type");
+const ec2WebServerBlock = config.require("device-name");
+const deviceVolume = config.require("device-volume");
+const deviceVolumeType = config.require("device-volume-type");
+const amiId = config.require("ami-id");
+const sshPort = config.require("ssh-port");
+const httpPort = config.require("http-port");
+const httpsPort = config.require("https-port");
+
+
+const publicSubnets = [];
+const privateSubnets = [];
 
 const vpc = new aws.ec2.Vpc(vpcName, {
   cidrBlock: vpcCidr,
@@ -32,15 +47,46 @@ const vpc = new aws.ec2.Vpc(vpcName, {
   },
 });
 
-const availabilityZones = pulumi.output(
-  aws.getAvailabilityZones({ state: "available", region: region })
-).names;
+const getAvailabilityZoneList = async function () {
+  const availabilityZones = await aws.getAvailabilityZones({ state: "available", region: region });
+  return availabilityZones.names;
+}
 
-const publicSubnets = [];
-const privateSubnets = [];
+const creatingInternetGateway = async function(){
 
-availabilityZones.apply((azs) => {
-  const numSubnets = Math.min(azs.length, numOfSubnets);
+// Attach the Internet Gateway to VPC
+const internetGateway = new aws.ec2.InternetGateway(
+  igatewayName,
+  {
+    vpcId: vpc.id,
+  }
+);
+
+return internetGateway;
+}
+
+const creatingSubnet = async function(){
+  const availabilityZones = await getAvailabilityZoneList();
+  
+  const numSubnets = Math.min(availabilityZones.length, numOfSubnets);
+  
+  const internetGateway = await creatingInternetGateway(vpc);
+
+  //public route table
+const publicRouteTable = new aws.ec2.RouteTable(publicRTName, {
+  vpcId: vpc.id,
+  tags: {
+    Name: publicRTName,
+  },
+});
+
+// private route table
+const privateRouteTable = new aws.ec2.RouteTable(privateRTName, {
+  vpcId: vpc.id,
+  tags: {
+    Name: privateRTName,
+  },
+});
 
   // Create 3 public and 3 private subnets in specified availability zones.
   for (let i = 0; i < numSubnets; i++) {
@@ -75,92 +121,80 @@ availabilityZones.apply((azs) => {
       subnetId: privateSubnet.id,
     });
   }
-});
-
-//Internet Gateway
-const internetGateway = new aws.ec2.InternetGateway(igatewayName, {});
-
-// Attach the Internet Gateway to VPC
-const internetGatewayAttachment = new aws.ec2.InternetGatewayAttachment(
-  igatewayAttachName,
-  {
-    vpcId: vpc.id,
-    internetGatewayId: internetGateway.id,
-  }
-);
-
-//public route table
-const publicRouteTable = new aws.ec2.RouteTable(publicRTName, {
-  vpcId: vpc.id,
-  tags: {
-    Name: publicRTName,
-  },
-});
 
 // Create a default route in the public route table that directs traffic to the Internet Gateway
+
 const publicRoute = new aws.ec2.Route(publicRouteName, {
   routeTableId: publicRouteTable.id,
   destinationCidrBlock: igateCidr,
   gatewayId: internetGateway.id,
 });
 
-// // Attach all public subnets to the public route table
-// publicSubnets.forEach((publicSubnet, index) => {
-//   const subnetAssociation = new aws.ec2.RouteTableAssociation(
-//     `${publicSubAssociationPrefix}${index}`,
-//     {
-//       routeTableId: publicRouteTable.id,
-//       subnetId: publicSubnet.id,
-//     }
-//   );
-// });
+}
 
-// private route table
-const privateRouteTable = new aws.ec2.RouteTable(privateRTName, {
-  vpcId: vpc.id,
-  tags: {
-    Name: privateRTName,
-  },
+const creatingSecurityGroup = async function (vpc) {
+  const appSecGroup = new aws.ec2.SecurityGroup(securityGroupName, {
+  description: "Enable access to application",
+  vpcId:vpc.id,
+  ingress: [
+    {
+      fromPort: sshPort,
+      toPort: sshPort,
+      protocol: "tcp",
+      cidrBlocks: [igateCidr],
+    },
+    {
+      fromPort: httpPort,
+      toPort: httpPort,
+      protocol: "tcp",
+      cidrBlocks: [igateCidr],
+    },
+    {
+      fromPort: httpsPort,
+      toPort: httpsPort,
+      protocol: "tcp",
+      cidrBlocks: [igateCidr],
+    },
+    {
+      fromPort: webappPort,
+      toPort: webappPort,
+      protocol: "tcp",
+      cidrBlocks: [igateCidr],
+    },
+  ],
 });
+return appSecGroup;
+}
 
-// Iterate through private subnets and associate them with the private route table
-// for (let i = 0; i < privateSubnets.length; i++) {
-//   const subnetAssociation = new aws.ec2.RouteTableAssociation(
-//     `${privateSubAssociationPrefix}${i}`,
-//     {
-//       routeTableId: privateRouteTable.id,
-//       subnetId: privateSubnets[i].id,
-//     }
-//   );
-// }
+const creatingEc2Instances = async function (vpc, publicSubnets, appSecGroup) {
+    const ec2instance  = new aws.ec2.Instance(
+  ec2Name,{
+  instanceType: instanceType,
+  securityGroups : [appSecGroup.id],
+  ami : amiId,
+  subnetId : publicSubnets.id,
+  tags : { Name: ec2Name },
+  disableApiTermination: false,
+  associatePublicIpAddress: true,
+  keyName: keyName,
+  blockDeviceMappings: [
+            {
+                deviceName: ec2WebServerBlock,
+                ebs: {
+                    volumeSize: deviceVolume,
+                    volumeType: deviceVolumeType,
+                    deleteOnTermination: true,
+                },
+            },
+        ],
+  });
+  return ec2instance;
+}
 
-webapp_security_group = aws.ec2.SecurityGroup(
-  "application security group",
-  (description = "Web Application Security Group"),
-  (ingress = [
-    aws.ec2.SecurityGroupIngressArgs(
-      (protocol = "tcp"),
-      (from_port = 22),
-      (to_port = 22),
-      (cidr_blocks = [igateCidr])
-    ),
-    aws.ec2.SecurityGroupIngressArgs(
-      (protocol = "tcp"),
-      (from_port = 80),
-      (to_port = 80),
-      (cidr_blocks = [igateCidr])
-    ),
-    aws.ec2.SecurityGroupIngressArgs(
-      (protocol = "tcp"),
-      (from_port = 443),
-      (to_port = 443),
-      (cidr_blocks = [igateCidr])
-    ),
-    aws.ec2.SecurityGroupIngressArgs(
-      (protocol = "tcp"),
-      (from_port = webappPort),
-      (to_port = webappPort),
-      (cidr_blocks = [igateCidr])
-    ),
-  ])
-);
+const mySubnets = creatingSubnet();
+
+mySubnets.then(async () => {
+    const appSecGroup = await creatingSecurityGroup(vpc);
+    await creatingEc2Instances(vpc, publicSubnets[0], appSecGroup);
+});
+  

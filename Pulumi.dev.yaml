@@ -1,18 +1,30 @@
 encryptionsalt: v1:Ew4fY2yvODs=:v1:b0szQAUGHnIRv7oo:bVzPUgYCG762lVFEwuUbGHNjKYaUcw==
 config:
-  aws:profile: demouser
-  aws:region: ap-northeast-1
-  iac-pulumi:num_of_subnets: 3
+  aws:profile: devuser
+  aws:region: us-east-1
+  iac-pulumi:region: us-east-1
+  iac-pulumi:internet-gateway-attachment-name: my-ig-attach
+  iac-pulumi:internet-gateway-cidr: 0.0.0.0/0
+  iac-pulumi:internet-gateway-name: my-ig
+  iac-pulumi:num_of_subnets: "3"
+  iac-pulumi:private-SubAssociationPrefix: private-subnet-association-
+  iac-pulumi:private-rt-name: private-rt
+  iac-pulumi:privateSubPrefix: private-subnet-
+  iac-pulumi:public-SubAssociationPrefix: public-subnet-association-
+  iac-pulumi:public-route-name: public-route
+  iac-pulumi:public-rt-name: public-rt
+  iac-pulumi:publicSubPrefix: public-subnet-
   iac-pulumi:vpc-cidr-block: 10.0.0.0/18
   iac-pulumi:vpc-name: my-vpc
-  iac-pulumi:internet-gateway-name: my-ig
-  iac-pulumi:internet-gateway-cidr: 0.0.0.0/0
-  iac-pulumi:internet-gateway-attachment-name: my-ig-attach
-  iac-pulumi:public-rt-name: public-rt
-  iac-pulumi:private-rt-name: private-rt
-  iac-pulumi:publicSubPrefix: public-subnet-
-  iac-pulumi:privateSubPrefix: private-subnet-
-  iac-pulumi:public-route-name: public-route
-  iac-pulumi:public-SubAssociationPrefix: public-subnet-association-
-  iac-pulumi:private-SubAssociationPrefix: private-subnet-association-
   iac-pulumi:web-app-port: 3000
+  iac-pulumi:key-name: ssh-key
+  iac-pulumi:security-group-name: application security group
+  iac-pulumi:ec2-name: EC2-WebServer
+  iac-pulumi:instance-type: t2.micro
+  iac-pulumi:device-name: EC2-WebServer-Block
+  iac-pulumi:device-volume: 25
+  iac-pulumi:device-volume-type: gp2
+  iac-pulumi:ami-id: ami-007a643100c79e5fd
+  iac-pulumi:ssh-port: 22
+  iac-pulumi:http-port: 80
+  iac-pulumi:https-port: 443
