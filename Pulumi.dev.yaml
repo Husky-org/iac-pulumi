@@ -26,7 +26,7 @@ config:
   iac-pulumi:device-name: EC2-WebServer-Block
   iac-pulumi:device-volume: 25
   iac-pulumi:device-volume-type: gp2
-  iac-pulumi:ami-id: ami-0934cf2a4e3519581
+  iac-pulumi:ami-id: ami-083908d5f31fee0a3
   iac-pulumi:ssh-port: 22
   iac-pulumi:http-port: 80
   iac-pulumi:https-port: 443

@@ -252,7 +252,7 @@ const dbSubnetGroup = async function () {
   return subnetGroup;
 };
 
-const createRdsInstance = async function (dbSecGroup, subnetGroup) {
+const createRdsInstance = async function (dbSecGroup, subnetGroup, pgForRds) {
   const rdsInstance = new aws.rds.Instance(dbName, {
     allocatedStorage: dbVolume,
     engine: dbDialect,
@@ -266,7 +266,8 @@ const createRdsInstance = async function (dbSecGroup, subnetGroup) {
     publiclyAccessible: false,
     multiAz: false,
     vpcSecurityGroupIds: [dbSecGroup.id],
-    dbSubnetGroupName: subnetGroup,
+    dbSubnetGroupName: subnetGroup.name,
+    parameterGroupName: pgForRds.name,
   });
   return rdsInstance;
 };
@@ -278,7 +279,11 @@ mySubnets.then(async () => {
   const dbSecGroup = await databaseSecurityGroup(vpc, appSecGroup);
   const pgForRds = await ParameterGroup();
   const subnetGroup = await dbSubnetGroup();
-  const rdsInstance = await createRdsInstance(dbSecGroup, subnetGroup);
+  const rdsInstance = await createRdsInstance(
+    dbSecGroup,
+    subnetGroup,
+    pgForRds
+  );
   //const envVariables = `DB_NAME=${dbName};  WEBAPP_DB_USER=${webappDb};  DB_PASSWORD=${dbPassword};  DB_HOST=${rdsInstance.endpoint};  DB_DIALECT=${dbDialect};  `;
   const userDataScript = pulumi.interpolate`#!/bin/bash
   DB_NAME=${dbName};
