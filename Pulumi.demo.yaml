@@ -1,6 +1,6 @@
-encryptionsalt: v1:yfiyWd7Wneo=:v1:5caUhdKNh3/l84hZ:Fx3B5x9DIENwQT4F1kJokgBxow8+SA==
+encryptionsalt: v1:Ew4fY2yvODs=:v1:b0szQAUGHnIRv7oo:bVzPUgYCG762lVFEwuUbGHNjKYaUcw==
 config:
-  aws:profile: demouser
+  aws:profile: devuser
   aws:region: us-east-1
   iac-pulumi:region: us-east-1
   iac-pulumi:internet-gateway-attachment-name: my-ig-attach
@@ -17,14 +17,25 @@ config:
   iac-pulumi:vpc-cidr-block: 10.0.0.0/18
   iac-pulumi:vpc-name: my-vpc
   iac-pulumi:web-app-port: 3000
+  iac-pulumi:db-port: 3306
   iac-pulumi:key-name: ssh-key
   iac-pulumi:security-group-name: application security group
+  iac-pulumi:db-security-name: Database security group
   iac-pulumi:ec2-name: EC2-WebServer
   iac-pulumi:instance-type: t2.micro
   iac-pulumi:device-name: EC2-WebServer-Block
   iac-pulumi:device-volume: 25
   iac-pulumi:device-volume-type: gp2
-  iac-pulumi:ami-id: ami-0943c8456aeb20c2d
+  iac-pulumi:ami-id: ami-0934cf2a4e3519581
   iac-pulumi:ssh-port: 22
   iac-pulumi:http-port: 80
   iac-pulumi:https-port: 443
+  iac-pulumi:db-name: nodemysql
+  iac-pulumi:webapp-db-user: csye6225
+  iac-pulumi:db-password: csye6225
+  iac-pulumi:db-host: 127.0.0.1
+  iac-pulumi:db-dialect: mariadb
+  iac-pulumi:db-volume: 20
+  iac-pulumi:db-class: db.t2.micro
+  iac-pulumi:db-engine-version: 10.5
+  iac-pulumi:parameter-group-family: mariadb10.5
