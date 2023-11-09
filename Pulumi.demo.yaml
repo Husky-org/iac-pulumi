@@ -39,3 +39,6 @@ config:
   iac-pulumi:db-class: db.t2.micro
   iac-pulumi:db-engine-version: 10.5
   iac-pulumi:parameter-group-family: mariadb10.5
+  iac-pulumi:route53-record-ttl: 60
+  iac-pulumi:domain: mayurkenkre.me
+  iac-pulumi:policy-arn: arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy

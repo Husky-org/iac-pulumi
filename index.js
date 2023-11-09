@@ -48,12 +48,16 @@ const dbEngine = config.require("db-engine-version");
 const parameterFamily = config.require("parameter-group-family");
 const publicSubnets = [];
 const privateSubnets = [];
+const route53RecordTtl = config.require("route53-record-ttl");
+const domain = config.require("domain");
+const policyArn = config.require("policy-arn");
 
 const vpc = new aws.ec2.Vpc(vpcName, {
   cidrBlock: vpcCidr,
   tags: {
     Name: vpcName,
   },
+  enableDnsSupport: true,
 });
 
 const getAvailabilityZoneList = async function () {
@@ -175,22 +179,60 @@ const creatingSecurityGroup = async function (vpc) {
         protocol: "tcp",
         cidrBlocks: [igateCidr],
       },
+      {
+        fromPort: httpsPort,
+        toPort: httpsPort,
+        protocol: "tcp",
+        cidrBlocks: [igateCidr],
+      },
     ],
   });
   return appSecGroup;
+};
+
+const creatingCloudWatchRole = async function () {
+  const role = new aws.iam.Role("ec2Role", {
+    assumeRolePolicy: JSON.stringify({
+      Version: "2012-10-17",
+      Statement: [
+        {
+          Action: "sts:AssumeRole",
+          Principal: {
+            Service: "ec2.amazonaws.com",
+          },
+          Effect: "Allow",
+        },
+      ],
+    }),
+  });
+
+  const policyAttachment = new aws.iam.PolicyAttachment(
+    "role-policy-attachment",
+    {
+      roles: [role.name],
+      policyArn: policyArn,
+    }
+  );
+
+  const instanceProfile = new aws.iam.InstanceProfile("instanceProfile", {
+    role: role.name,
+  });
+  return instanceProfile;
 };
 
 const creatingEc2Instances = async function (
   vpc,
   publicSubnets,
   appSecGroup,
-  userDataScript
+  userDataScript,
+  instanceProfile
 ) {
   const ec2instance = new aws.ec2.Instance(ec2Name, {
     instanceType: instanceType,
     securityGroups: [appSecGroup.id],
     ami: amiId,
     subnetId: publicSubnets.id,
+    iamInstanceProfile: instanceProfile.name,
     tags: { Name: ec2Name },
     disableApiTermination: false,
     associatePublicIpAddress: true,
@@ -272,6 +314,20 @@ const createRdsInstance = async function (dbSecGroup, subnetGroup, pgForRds) {
   return rdsInstance;
 };
 
+const createArecord = async function (ec2instance) {
+  const zoneName = pulumi.getStack() + "." + domain;
+  let zoneId = aws.route53.getZone({ name: zoneName }, { async: true });
+
+  let aRecord = new aws.route53.Record("web-server-record", {
+    name: zoneName,
+    type: "A",
+    ttl: route53RecordTtl,
+    records: [ec2instance.publicIp],
+    zoneId: zoneId.then((zone) => zone.zoneId),
+  });
+  return aRecord;
+};
+
 const mySubnets = creatingSubnet();
 
 mySubnets.then(async () => {
@@ -284,8 +340,13 @@ mySubnets.then(async () => {
     subnetGroup,
     pgForRds
   );
-  //const envVariables = `DB_NAME=${dbName};  WEBAPP_DB_USER=${webappDb};  DB_PASSWORD=${dbPassword};  DB_HOST=${rdsInstance.endpoint};  DB_DIALECT=${dbDialect};  `;
+
   const userDataScript = pulumi.interpolate`#!/bin/bash
+  set -x
+  sudo touch /var/log/csye6225_stdop.log
+  sudo touch /var/log/csye6225_error.log
+  sudo chown csye6225:csye6225 /var/log/csye6225_stdop.log /var/log/csye6225_error.log
+  
   DB_NAME=${dbName};
   WEBAPP_DB_USER=${webappDb};
   DB_PASSWORD=${dbPassword};
@@ -301,13 +362,25 @@ mySubnets.then(async () => {
   echo "DB_DIALECT=\${DB_DIALECT}" >> .env
 
   sudo chown -R csye6225:csye6225 /opt/csye6225
+
+  sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+    -a fetch-config \
+    -m ec2 \
+    -c file:/opt/aws/amazon-cloudwatch-agent/cloudwatch-config.json \
+    -s
+
+    sudo systemctl restart amazon-cloudwatch-agent
+    sudo systemctl restart csye6225
   `;
 
-  //console.log("env variables: " + userDataScript);
-  await creatingEc2Instances(
+  const instanceProfile = await creatingCloudWatchRole();
+  const ec2instance = await creatingEc2Instances(
     vpc,
     publicSubnets[0],
     appSecGroup,
-    userDataScript
+    userDataScript,
+    instanceProfile
   );
+
+  const aRecord = await createArecord(ec2instance);
 });

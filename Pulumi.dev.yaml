@@ -26,7 +26,7 @@ config:
   iac-pulumi:device-name: EC2-WebServer-Block
   iac-pulumi:device-volume: 25
   iac-pulumi:device-volume-type: gp2
-  iac-pulumi:ami-id: ami-083908d5f31fee0a3
+  iac-pulumi:ami-id: ami-0d9f67d5fa20b81ae
   iac-pulumi:ssh-port: 22
   iac-pulumi:http-port: 80
   iac-pulumi:https-port: 443
@@ -39,3 +39,6 @@ config:
   iac-pulumi:db-class: db.t2.micro
   iac-pulumi:db-engine-version: 10.5
   iac-pulumi:parameter-group-family: mariadb10.5
+  iac-pulumi:route53-record-ttl: 60
+  iac-pulumi:domain: mayurkenkre.me
+  iac-pulumi:policy-arn: arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
