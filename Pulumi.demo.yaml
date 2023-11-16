@@ -1,6 +1,6 @@
 encryptionsalt: v1:Ew4fY2yvODs=:v1:b0szQAUGHnIRv7oo:bVzPUgYCG762lVFEwuUbGHNjKYaUcw==
 config:
-  aws:profile: devuser
+  aws:profile: demouser
   aws:region: us-east-1
   iac-pulumi:region: us-east-1
   iac-pulumi:internet-gateway-attachment-name: my-ig-attach
@@ -26,7 +26,7 @@ config:
   iac-pulumi:device-name: EC2-WebServer-Block
   iac-pulumi:device-volume: 25
   iac-pulumi:device-volume-type: gp2
-  iac-pulumi:ami-id: ami-0934cf2a4e3519581
+  iac-pulumi:ami-id: ami-0d9f67d5fa20b81ae
   iac-pulumi:ssh-port: 22
   iac-pulumi:http-port: 80
   iac-pulumi:https-port: 443

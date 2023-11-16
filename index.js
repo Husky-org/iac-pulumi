@@ -48,10 +48,16 @@ const dbEngine = config.require("db-engine-version");
 const parameterFamily = config.require("parameter-group-family");
 const publicSubnets = [];
 const privateSubnets = [];
+let availabilityZones = [];
 const route53RecordTtl = config.require("route53-record-ttl");
 const domain = config.require("domain");
 const policyArn = config.require("policy-arn");
-
+const autoScaleMin = config.require("autoscale-min");
+const autoScaleMax = config.require("autoscale-max");
+const autoScaleCooldown = config.require("autoscale-cooldown");
+const metricScaleUpThreshold = config.require("metric-scaleUpThreshold");
+const metricScaleDownThreshold = config.require("metric-scaleDownThreshold");
+const metricPeriod = config.require("metric-period");
 const vpc = new aws.ec2.Vpc(vpcName, {
   cidrBlock: vpcCidr,
   tags: {
@@ -78,7 +84,7 @@ const creatingInternetGateway = async function () {
 };
 
 const creatingSubnet = async function () {
-  const availabilityZones = await getAvailabilityZoneList();
+  availabilityZones = await getAvailabilityZoneList();
 
   const numSubnets = Math.min(availabilityZones.length, numOfSubnets);
 
@@ -142,7 +148,7 @@ const creatingSubnet = async function () {
   });
 };
 
-const creatingSecurityGroup = async function (vpc) {
+const creatingSecurityGroup = async function (vpc, lbSecurityGroup) {
   const appSecGroup = new aws.ec2.SecurityGroup(securityGroupName, {
     description: "Enable access to application",
     vpcId: vpc.id,
@@ -152,24 +158,14 @@ const creatingSecurityGroup = async function (vpc) {
         toPort: sshPort,
         protocol: "tcp",
         cidrBlocks: [igateCidr],
-      },
-      {
-        fromPort: httpPort,
-        toPort: httpPort,
-        protocol: "tcp",
-        cidrBlocks: [igateCidr],
-      },
-      {
-        fromPort: httpsPort,
-        toPort: httpsPort,
-        protocol: "tcp",
-        cidrBlocks: [igateCidr],
+        //securityGroups: [lbSecurityGroup.id],
       },
       {
         fromPort: webappPort,
         toPort: webappPort,
         protocol: "tcp",
-        cidrBlocks: [igateCidr],
+        //cidrBlocks: [igateCidr],
+        securityGroups: [lbSecurityGroup.id],
       },
     ],
     egress: [
@@ -180,11 +176,17 @@ const creatingSecurityGroup = async function (vpc) {
         cidrBlocks: [igateCidr],
       },
       {
-        fromPort: httpsPort,
-        toPort: httpsPort,
-        protocol: "tcp",
+        fromPort: 0,
+        toPort: 0,
+        protocol: "-1",
         cidrBlocks: [igateCidr],
       },
+      // {
+      //   fromPort: httpsPort,
+      //   toPort: httpsPort,
+      //   protocol: "tcp",
+      //   cidrBlocks: [igateCidr],
+      // },
     ],
   });
   return appSecGroup;
@@ -220,37 +222,37 @@ const creatingCloudWatchRole = async function () {
   return instanceProfile;
 };
 
-const creatingEc2Instances = async function (
-  vpc,
-  publicSubnets,
-  appSecGroup,
-  userDataScript,
-  instanceProfile
-) {
-  const ec2instance = new aws.ec2.Instance(ec2Name, {
-    instanceType: instanceType,
-    securityGroups: [appSecGroup.id],
-    ami: amiId,
-    subnetId: publicSubnets.id,
-    iamInstanceProfile: instanceProfile.name,
-    tags: { Name: ec2Name },
-    disableApiTermination: false,
-    associatePublicIpAddress: true,
-    keyName: keyName,
-    userData: userDataScript,
-    blockDeviceMappings: [
-      {
-        deviceName: ec2WebServerBlock,
-        ebs: {
-          volumeSize: deviceVolume,
-          volumeType: deviceVolumeType,
-          deleteOnTermination: true,
-        },
-      },
-    ],
-  });
-  return ec2instance;
-};
+// const creatingEc2Instances = async function (
+//   vpc,
+//   publicSubnets,
+//   appSecGroup,
+//   userDataScript,
+//   instanceProfile
+// ) {
+//   const ec2instance = new aws.ec2.Instance(ec2Name, {
+//     instanceType: instanceType,
+//     securityGroups: [appSecGroup.id],
+//     ami: amiId,
+//     subnetId: publicSubnets.id,
+//     iamInstanceProfile: instanceProfile.name,
+//     tags: { Name: ec2Name },
+//     disableApiTermination: false,
+//     associatePublicIpAddress: true,
+//     keyName: keyName,
+//     userData: userDataScript,
+//     blockDeviceMappings: [
+//       {
+//         deviceName: ec2WebServerBlock,
+//         ebs: {
+//           volumeSize: deviceVolume,
+//           volumeType: deviceVolumeType,
+//           deleteOnTermination: true,
+//         },
+//       },
+//     ],
+//   });
+//   return ec2instance;
+// };
 
 const databaseSecurityGroup = async function (vpc, appSecGroup) {
   const dbSecGroup = new aws.ec2.SecurityGroup("Database security group", {
@@ -265,7 +267,7 @@ const databaseSecurityGroup = async function (vpc, appSecGroup) {
       },
     ],
     egress: [
-      { protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: [igateCidr] },
+      //{ protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: [igateCidr] },
       {
         fromPort: webappPort,
         toPort: webappPort,
@@ -294,7 +296,12 @@ const dbSubnetGroup = async function () {
   return subnetGroup;
 };
 
-const createRdsInstance = async function (dbSecGroup, subnetGroup, pgForRds) {
+const createRdsInstance = async function (
+  dbSecGroup,
+  subnetGroup,
+  pgForRds,
+  appSecGroup
+) {
   const rdsInstance = new aws.rds.Instance(dbName, {
     allocatedStorage: dbVolume,
     engine: dbDialect,
@@ -314,31 +321,202 @@ const createRdsInstance = async function (dbSecGroup, subnetGroup, pgForRds) {
   return rdsInstance;
 };
 
-const createArecord = async function (ec2instance) {
+const createArecord = async function (lBalancer) {
   const zoneName = pulumi.getStack() + "." + domain;
   let zoneId = aws.route53.getZone({ name: zoneName }, { async: true });
 
   let aRecord = new aws.route53.Record("web-server-record", {
     name: zoneName,
     type: "A",
-    ttl: route53RecordTtl,
-    records: [ec2instance.publicIp],
     zoneId: zoneId.then((zone) => zone.zoneId),
+    //records: [ec2instance.publicIp],
+    aliases: [
+      {
+        name: lBalancer.dnsName, // The dnsName of your ELB, S3 website endpoint, etc
+        zoneId: lBalancer.zoneId, // The zoneId of your ELB, S3 website endpoint, etc
+        evaluateTargetHealth: true,
+      },
+    ],
   });
   return aRecord;
+};
+
+const lbSecGroup = async function (vpc) {
+  let loadBalancerSecurityGroup = new aws.ec2.SecurityGroup(
+    "loadBalancerSecurityGroup",
+    {
+      description:
+        "Security group for the Load Balancer to access the web application",
+      vpcId: vpc.id,
+      ingress: [
+        // Allow HTTP traffic from anywhere
+        {
+          protocol: "tcp",
+          fromPort: httpPort,
+          toPort: httpPort,
+          cidrBlocks: [igateCidr],
+        },
+        // Allow HTTPS traffic from anywhere
+        {
+          protocol: "tcp",
+          fromPort: httpsPort,
+          toPort: httpsPort,
+          cidrBlocks: [igateCidr],
+        },
+      ],
+      egress: [
+        { protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: [igateCidr] },
+      ],
+    }
+  );
+
+  return loadBalancerSecurityGroup;
+};
+
+const loadBalancer = async function (
+  vpc,
+  lbSecurityGroup,
+  publicSubnets,
+  appSecGroup
+) {
+  let lb = new aws.lb.LoadBalancer("app-lb", {
+    subnets: publicSubnets.map((subnet) => subnet.id),
+    securityGroups: [lbSecurityGroup.id],
+  });
+
+  // Create a target group using the app port your instances are listening on
+  let tg = new aws.lb.TargetGroup("targetgroup", {
+    port: webappPort,
+    protocol: "HTTP",
+    targetType: "instance",
+    vpcId: vpc.id,
+    healthCheck: {
+      enabled: true,
+      path: "/healthz",
+      protocol: "HTTP",
+      port: webappPort,
+      timeout: 25,
+    },
+  });
+
+  // Add a listener to the load balancer
+  let listener = new aws.lb.Listener("listener", {
+    loadBalancerArn: lb.arn,
+    port: httpPort,
+    defaultActions: [
+      {
+        type: "forward",
+        targetGroupArn: tg.arn,
+      },
+    ],
+  });
+  return { lb, tg };
+};
+
+const launchConfig = async function (
+  // vpc,
+  //publicSubnets,
+  appSecGroup,
+  userDataScriptBase64,
+  instanceProfile,
+  targetGroup
+) {
+  //console.log("instanceProfile: ", instanceProfile);
+  let launchConfig = new aws.ec2.LaunchTemplate("asg_launch_config", {
+    imageId: amiId,
+    instanceType: instanceType,
+    keyName: keyName,
+    userData: userDataScriptBase64,
+    iamInstanceProfile: {
+      name: instanceProfile.name,
+    },
+    //vpcSecurityGroupIds: [appSecGroup.id],
+    networkInterfaces: [
+      {
+        associatePublicIpAddress: true,
+        deviceIndex: 0,
+        securityGroups: [appSecGroup.id],
+        subnetId: publicSubnets[0].id,
+      },
+    ],
+  });
+  return launchConfig;
+};
+
+const asGroup = async function (launchConfig, targetGroup) {
+  let autoScalingGroup = new aws.autoscaling.Group("webAppAutoScalingGroup", {
+    //availabilityZones: [availabilityZones[0]],
+    vpcZoneIdentifiers: publicSubnets.map((subnet) => subnet.id),
+    desiredCapacity: 1,
+    maxSize: autoScaleMax,
+    minSize: autoScaleMin,
+    targetGroupArns: [targetGroup.arn],
+    launchTemplate: {
+      id: launchConfig.id,
+      version: launchConfig.latestVersion,
+    },
+  });
+
+  let scaleUpPolicy = new aws.autoscaling.Policy("scaleup", {
+    adjustmentType: "ChangeInCapacity",
+    autoscalingGroupName: autoScalingGroup.name,
+    cooldown: autoScaleCooldown,
+    scalingAdjustment: 1,
+    policyType: "SimpleScaling",
+  });
+
+  let scaleDownPolicy = new aws.autoscaling.Policy("scaledown", {
+    adjustmentType: "ChangeInCapacity",
+    autoscalingGroupName: autoScalingGroup.name,
+    cooldown: autoScaleCooldown,
+    scalingAdjustment: -1,
+    policyType: "SimpleScaling",
+  });
+
+  const scaleUpAlarm = new aws.cloudwatch.MetricAlarm("cpuHighAlarm", {
+    comparisonOperator: "GreaterThanOrEqualToThreshold",
+    evaluationPeriods: 1,
+    metricName: "CPUUtilization",
+    namespace: "AWS/EC2",
+    period: metricPeriod,
+    statistic: "Average",
+    threshold: metricScaleUpThreshold,
+    alarmActions: [scaleUpPolicy.arn],
+    dimensions: {
+      AutoScalingGroupName: autoScalingGroup.name,
+    },
+  });
+
+  const scaleDownAlarm = new aws.cloudwatch.MetricAlarm("cpuLowAlarm", {
+    comparisonOperator: "LessThanOrEqualToThreshold",
+    evaluationPeriods: 1,
+    metricName: "CPUUtilization",
+    namespace: "AWS/EC2",
+    period: metricPeriod,
+    statistic: "Average",
+    threshold: metricScaleDownThreshold,
+    alarmActions: [scaleDownPolicy.arn],
+    dimensions: {
+      AutoScalingGroupName: autoScalingGroup.name,
+    },
+  });
+
+  return autoScalingGroup;
 };
 
 const mySubnets = creatingSubnet();
 
 mySubnets.then(async () => {
-  const appSecGroup = await creatingSecurityGroup(vpc);
+  const lbSecurityGroup = await lbSecGroup(vpc);
+  const appSecGroup = await creatingSecurityGroup(vpc, lbSecurityGroup);
   const dbSecGroup = await databaseSecurityGroup(vpc, appSecGroup);
   const pgForRds = await ParameterGroup();
   const subnetGroup = await dbSubnetGroup();
   const rdsInstance = await createRdsInstance(
     dbSecGroup,
     subnetGroup,
-    pgForRds
+    pgForRds,
+    appSecGroup
   );
 
   const userDataScript = pulumi.interpolate`#!/bin/bash
@@ -370,17 +548,38 @@ mySubnets.then(async () => {
     -s
 
     sudo systemctl restart amazon-cloudwatch-agent
+
+    sleep 15
     sudo systemctl restart csye6225
   `;
 
-  const instanceProfile = await creatingCloudWatchRole();
-  const ec2instance = await creatingEc2Instances(
+  const userDataScriptBase64 = pulumi
+    .output(userDataScript)
+    .apply((text) => Buffer.from(text).toString("base64"));
+
+  const lBalancer = await loadBalancer(
     vpc,
-    publicSubnets[0],
+    lbSecurityGroup,
+    publicSubnets,
+    appSecGroup
+  );
+  const aRecord = await createArecord(lBalancer.lb);
+  const instanceProfile = await creatingCloudWatchRole();
+
+  // const ec2instance = await creatingEc2Instances(
+  //   vpc,
+  //   publicSubnets[0],
+  //   appSecGroup,
+  //   userDataScript,
+  //   instanceProfile
+  // );
+
+  const lConfig = await launchConfig(
+    //   vpc,
+    //publicSubnets[0],
     appSecGroup,
-    userDataScript,
+    userDataScriptBase64,
     instanceProfile
   );
-
-  const aRecord = await createArecord(ec2instance);
+  const autoScaleGroup = await asGroup(lConfig, lBalancer.tg);
 });

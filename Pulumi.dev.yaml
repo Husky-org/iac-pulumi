@@ -26,7 +26,7 @@ config:
   iac-pulumi:device-name: EC2-WebServer-Block
   iac-pulumi:device-volume: 25
   iac-pulumi:device-volume-type: gp2
-  iac-pulumi:ami-id: ami-0d9f67d5fa20b81ae
+  iac-pulumi:ami-id: ami-099dff16ddc4aae7f
   iac-pulumi:ssh-port: 22
   iac-pulumi:http-port: 80
   iac-pulumi:https-port: 443
@@ -42,3 +42,11 @@ config:
   iac-pulumi:route53-record-ttl: 60
   iac-pulumi:domain: mayurkenkre.me
   iac-pulumi:policy-arn: arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+
+  #AutoScaling Properties
+  iac-pulumi:autoscale-max: 3
+  iac-pulumi:autoscale-min: 1
+  iac-pulumi:autoscale-cooldown: 60
+  iac-pulumi:metric-scaleUpThreshold: 5
+  iac-pulumi:metric-scaleDownThreshold: 3
+  iac-pulumi:metric-period: 60
