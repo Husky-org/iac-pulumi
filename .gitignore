@@ -1,3 +1,4 @@
 /node_modules/
 .pem
 /keys
+serverless.zip
