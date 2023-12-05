@@ -2,3 +2,5 @@
 .pem
 /keys
 serverless.zip
+csr*
+/cert_files
