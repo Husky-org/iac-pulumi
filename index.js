@@ -62,6 +62,7 @@ const metricScaleUpThreshold = config.require("metric-scaleUpThreshold");
 const metricScaleDownThreshold = config.require("metric-scaleDownThreshold");
 const metricPeriod = config.require("metric-period");
 let project_id = null;
+let certificateArn = null;
 
 const vpc = new aws.ec2.Vpc(vpcName, {
   cidrBlock: vpcCidr,
@@ -391,9 +392,20 @@ const loadBalancer = async function (
     },
   });
 
-  let listener = new aws.lb.Listener("listener", {
+  if (pulumi.getStack() == "dev") {
+    certificateArn =
+      "arn:aws:acm:us-east-1:781104868468:certificate/96eaf68e-1055-4a25-bc5c-6c558b40d720";
+  } else if (pulumi.getStack() == "demo") {
+    certificateArn =
+      "arn:aws:iam::407671753120:server-certificate/demo_ssl_certificate";
+  }
+
+  let httpsListener = new aws.lb.Listener("https-listener", {
     loadBalancerArn: lb.arn,
-    port: httpPort,
+    port: httpsPort,
+    protocol: "HTTPS",
+    //sslPolicy: "ELBSecurityPolicy-2016-08",
+    certificateArn: certificateArn,
     defaultActions: [
       {
         type: "forward",
@@ -630,7 +642,7 @@ const lambdaSetup = async function (snsTopic, GSetup, dynamoTable) {
   );
 
   const mySecret = new aws.secretsmanager.Secret("myServiceAccountKey", {
-    name: "my-service-account-key",
+    name: "my-service-account-key-1",
   });
 
   const secretsManagerPolicy = mySecret.arn.apply((arn) => {
