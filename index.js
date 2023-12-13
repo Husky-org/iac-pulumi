@@ -695,7 +695,7 @@ const lambdaSetup = async function (snsTopic, GSetup, dynamoTable) {
         GOOGLE_ACCESS_KEY_ID: GSetup.serviceAccountKey.id,
         // GOOGLE_SECRET_ACCESS_KEY: GSetup.serviceAccountKey,
         GOOGLE_BUCKET_NAME: GSetup.bucket.name,
-        EMAIL_API: "6b7f0720a73cee9713faf761849c4fa3-30b58138-da12143e",
+        EMAIL_API: <Email_api>,
         MAIL_DOMAIN: domain,
         SECRET_ARN: mySecret.arn,
         TABLE_NAME: dynamoTable.name,
